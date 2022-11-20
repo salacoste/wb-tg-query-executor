@@ -1,0 +1,21 @@
+package telegram
+
+import (
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
+
+func SendMessage(token string, chatId int64, message string) error {
+	bot, err := tgbotapi.NewBotAPI(token)
+	if err != nil {
+		return err
+	}
+	// bot.Debug = true
+
+	m := tgbotapi.NewMessage(chatId, message)
+	m.ParseMode = tgbotapi.ModeHTML
+	_, err = bot.Send(m)
+	if err != nil {
+		return err
+	}
+	return nil
+}
