@@ -52,16 +52,20 @@ func isItTimeToWork(id uint64, cronStr string, lastExecTs sql.NullTime) bool {
 
 func handleTask(db *sql.DB, task postgres.Task) {
 	log.Printf("Executing query...\n")
-	resultPretty, err := postgres.ExecQuery(db, task.SqlQuery)
+	resultNotEmpty, resultPretty, err := postgres.ExecQuery(db, task.SqlQuery)
 	log.Printf("Executing query... OK\n")	
 	if err != nil {
 		log.Println(err)
 		return 
 	}
-	msg := makeMessage(task.ChatDescribe, resultPretty)
-	log.Printf("Sending message...\n")
-	telegram.SendMessage(task.BotToken, task.ChatId, msg)
-	log.Printf("Sending message... OK\n")
+	if resultNotEmpty {
+		msg := makeMessage(task.ChatDescribe, resultPretty)
+		log.Printf("Sending message...\n")
+		telegram.SendMessage(task.BotToken, task.ChatId, msg)
+		log.Printf("Sending message... OK\n")
+	} else {
+		log.Printf("Empty resultset. Skip message")
+	}
 }
 
 func makeMessage(desc, queryRes string) string {

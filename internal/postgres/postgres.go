@@ -55,44 +55,30 @@ func UpdateLastExecutionTs(db *sql.DB, t Task) error {
 	return nil
 }
 
-func ExecQuery(db *sql.DB, q string) (string, error) {
+func ExecQuery(db *sql.DB, q string) (bool, string, error) {
 	rows, err := db.Query(q)
 	if err != nil {
-		return "", fmt.Errorf("query: %s error: %s", q, err)
+		return false, "", fmt.Errorf("query: %s error: %s", q, err)
 	}
 	defer rows.Close()
-	return xsql.Pretty(rows)
 
-	// res := QueryResult{}
-	// res.Headers, err = rows.Columns()
-	// log.Println(res.Headers)
-	// if err != nil {
-	// 	return QueryResult{}, fmt.Errorf("could not get columns from result of query: '%s' error: %s", q, err)
-	// }
+	var dataExist = false
+	for rows.Next() {
+		dataExist = true
+		break
+	}
 
-	// values := make([]sql.RawBytes, len(res.Headers))
-	// valuePtrs := make([]interface{}, len(res.Headers))
-	// for i, _ := range res.Headers {
-	// 	valuePtrs[i] = &values[i]
-	// }
-
-	// for rows.Next() {
-	// 	oneRow := make([]string, len(res.Headers))	
-	// 	err = rows.Scan(valuePtrs...)
-	// 	if err != nil {
-	// 		return QueryResult{}, fmt.Errorf("failed scan row from result of query: '%s' error: %s", q, err)
-	// 	}
-
-	// 	for i, raw := range values {
-    //         if raw == nil {
-    //             oneRow[i] = "<null>"
-    //         } else {
-    //             oneRow[i] = string(raw)
-    //         }
-    //     }
-	// 	res.Data = append(res.Data, oneRow)
-	// }
-	// return res, nil
+	if dataExist {
+		rows2, err := db.Query(q)
+		if err != nil {
+			return false, "", fmt.Errorf("query: %s error: %s", q, err)
+		}	
+		defer rows2.Close()
+		str, err := xsql.Pretty(rows2)
+		return true, str, err
+	} else {
+		return false, "", nil
+	}
 }
 
 // it is subtracted 3 hours (database timezone settings set to UTC, but time is MSK)
