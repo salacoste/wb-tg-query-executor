@@ -9,18 +9,31 @@ import (
 )
 
 type Task struct {
-	Id uint64
-	BotToken string
-	ChatId int64
-	ChatDescribe string
-	SqlQuery string
-	ScheduleCron string
+	Id              uint64
+	BotToken        string
+	ChatId          int64
+	ChatDescribe    string
+	SqlQuery        string
+	ScheduleCron    string
 	LastExecutionTs sql.NullTime
+	Settings        struct {
+		Preformatted bool
+		AddHeader    bool
+	}
 }
 
 func GetTaskList(db *sql.DB) ([]Task, error) {
 	q := `
-		SELECT id, bot_token, bot_chat_id, chat_describe, sql_query, schedule_cron, last_execution_ts
+		SELECT 
+			id, 
+			bot_token, 
+			bot_chat_id, 
+			chat_describe, 
+			sql_query, 
+			schedule_cron, 
+			last_execution_ts,
+			preformatted,
+			add_header
 		FROM tg_query_executor
 	`
 	rows, err := db.Query(q)
@@ -28,11 +41,20 @@ func GetTaskList(db *sql.DB) ([]Task, error) {
 		return nil, fmt.Errorf("processing query: %s. error: %s", q, err)
 	}
 	defer rows.Close()
-	
+
 	tasks := []Task{}
 	for rows.Next() {
 		t := Task{}
-		err := rows.Scan(&t.Id, &t.BotToken, &t.ChatId, &t.ChatDescribe, &t.SqlQuery, &t.ScheduleCron, &t.LastExecutionTs)
+		err := rows.Scan(
+			&t.Id, 
+			&t.BotToken, 
+			&t.ChatId,
+			&t.ChatDescribe, 
+			&t.SqlQuery, 
+			&t.ScheduleCron, 
+			&t.LastExecutionTs, 
+			&t.Settings.Preformatted, 
+			&t.Settings.AddHeader)
 		if err != nil {
 			return nil, fmt.Errorf("scan row: %s", err)
 		}
@@ -72,7 +94,7 @@ func ExecQuery(db *sql.DB, q string) (bool, string, error) {
 		rows2, err := db.Query(q)
 		if err != nil {
 			return false, "", fmt.Errorf("query: %s error: %s", q, err)
-		}	
+		}
 		defer rows2.Close()
 		str, err := xsql.Pretty(rows2)
 		return true, str, err

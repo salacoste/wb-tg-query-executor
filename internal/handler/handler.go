@@ -20,11 +20,11 @@ func DoWork (db *sql.DB) {
 	for _, t := range tasks {		
 		if isItTimeToWork(t.Id, t.ScheduleCron, t.LastExecutionTs) {
 			log.Printf("Handle task id: %d. desc: %s", t.Id, t.ChatDescribe)
-			handleTask(db, t)
-
-			t.LastExecutionTs = sql.NullTime{Time: time.Now(), Valid: true}
-			postgres.UpdateLastExecutionTs(db, t)
-			log.Printf("id: %d last_execution_ts updated to: %s\n", t.Id, t.LastExecutionTs.Time.String())
+			if handleTask(db, t) {
+				t.LastExecutionTs = sql.NullTime{Time: time.Now(), Valid: true}
+				postgres.UpdateLastExecutionTs(db, t)
+				log.Printf("id: %d last_execution_ts updated to: %s\n", t.Id, t.LastExecutionTs.Time.String())					
+			}
 		}
 	}
 }
@@ -50,27 +50,39 @@ func isItTimeToWork(id uint64, cronStr string, lastExecTs sql.NullTime) bool {
 	return time.Now().After(nextTime)
 }
 
-func handleTask(db *sql.DB, task postgres.Task) {
+func handleTask(db *sql.DB, task postgres.Task) bool {
 	log.Printf("Executing query...\n")
 	resultNotEmpty, resultPretty, err := postgres.ExecQuery(db, task.SqlQuery)
 	log.Printf("Executing query... OK\n")	
 	if err != nil {
 		log.Println(err)
-		return 
+		return false
 	}
 	if resultNotEmpty {
-		msg := makeMessage(task.ChatDescribe, resultPretty)
-		log.Printf("Sending message...\n")
-		telegram.SendMessage(task.BotToken, task.ChatId, msg)
-		log.Printf("Sending message... OK\n")
+		msg := makeMessage(task.ChatDescribe, resultPretty, task.Settings.Preformatted, task.Settings.AddHeader)
+		log.Printf("chat_id: %v sending message...\n", task.ChatId)
+		err := telegram.SendMessage(task.BotToken, task.ChatId, msg)
+		if err != nil {
+			log.Printf("chat_id: %v error: \n", err)
+			return false
+		}
+		log.Printf("chat_id: %v sending message... OK\n", task.ChatId)
 	} else {
 		log.Printf("Empty resultset. Skip message")
 	}
+	return true
 }
 
-func makeMessage(desc, queryRes string) string {
-	head := fmt.Sprintf("%s\n", desc)
-	body := fmt.Sprintf("<pre>%s</pre>", queryRes)
-	return head + body
+func makeMessage(desc string, queryRes string, preformatted bool, addHeader bool) string {
+	msg := ""
+	if addHeader {
+		msg += fmt.Sprintf("%s\n", desc)
+	}
+	if preformatted {
+		msg += fmt.Sprintf("<pre>%s</pre>", queryRes)
+	} else {
+		msg += queryRes
+	}
+	return msg
 }
 
